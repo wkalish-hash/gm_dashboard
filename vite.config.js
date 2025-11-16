@@ -4,31 +4,21 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Base path for Shakudo proxy setup
+  // Use '/' for dev (Shakudo proxies through /proxy/5173/), '/gm_dashboard/' for production build
+  base: '/',
   plugins: [react(), tailwindcss()],
-  // server: {
-  //   proxy: {
-  //     '/api/webhook': {
-  //       target: 'https://n8n.mcp.hyperplane.dev',
-  //       changeOrigin: true,
-  //       secure: true,
-  //       rewrite: (path) => path.replace(/^\/api/, ''),
-  //        cookieDomainRewrite: '',
-  //       configure: (proxy, _options) => {
-  //         proxy.on('error', (err, _req, _res) => {
-  //           console.log('proxy error', err);
-  //         });
-  //         proxy.on('proxyReq', (proxyReq, req, _res) => {
-  //           console.log('Sending Request to the Target:', req.method, req.url);
-  //           // Forward any authorization headers
-  //           if (req.headers.authorization) {
-  //             proxyReq.setHeader('Authorization', req.headers.authorization);
-  //           }
-  //         });
-  //         proxy.on('proxyRes', (proxyRes, req, _res) => {
-  //           console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-  //         });
-  //       },
-  //     },
-  //   },
-  // },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
+    // Disable HMR completely to avoid OAuth redirect issues in Shakudo environment
+    hmr: false,
+    // Prevent Vite from trying to connect via WebSocket
+    ws: false,
+  },
+  // Prevent Vite from injecting HMR client code
+  define: {
+    'import.meta.hot': false,
+  },
 })

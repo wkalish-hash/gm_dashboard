@@ -10,8 +10,15 @@ function App() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        // Direct webhook URL - same environment, no CORS/auth issues
-        const webhookUrl = 'https://n8n.mcp.hyperplane.dev/webhook/get_data'
+        // Use relative URL when in same environment (Shakudo), or full URL if specified in env
+        // This avoids OAuth redirect issues when running in the same environment
+        // If VITE_WEBHOOK_URL is not set, use relative path (works when deployed in same domain)
+        const webhookUrl = import.meta.env.VITE_WEBHOOK_URL || '/webhook/get_data'
+        
+        // Log for debugging (remove in production if needed)
+        if (import.meta.env.DEV) {
+          console.log('Fetching from webhook URL:', webhookUrl)
+        }
         
         const response = await fetch(webhookUrl, {
           method: 'GET',
@@ -19,10 +26,18 @@ function App() {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
+          credentials: 'same-origin', // Include cookies for same-origin requests
+          redirect: 'follow', // Follow redirects normally
         })
         
+        // Check if response was redirected to OAuth (common indicators)
+        if (response.redirected && response.url.includes('/auth/')) {
+          throw new Error('Authentication required. Please ensure you are logged in to Shakudo.')
+        }
+        
         if (!response.ok) {
-          throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`)
+          const errorText = await response.text().catch(() => '')
+          throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`)
         }
         
         const jsonData = await response.json()

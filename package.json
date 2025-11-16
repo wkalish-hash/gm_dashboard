@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://mcp.hyperplane.dev/gm_dashboard",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
