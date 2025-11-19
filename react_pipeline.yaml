@@ -1,0 +1,7 @@
+pipeline:
+  name: "GM Dashboard Pipeline"
+  tasks:
+    - name: "Install and Start Application"
+      type: "bash script"
+      bash_script_path: "deploy.sh"
+
