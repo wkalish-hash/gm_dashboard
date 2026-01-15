@@ -24,6 +24,43 @@ export default defineConfig({
     cors: false,
     // Disable source map to avoid additional requests
     sourcemap: false,
+    // Proxy API requests to n8n to avoid CORS issues
+    proxy: {
+      '/api/n8n': {
+        target: 'https://n8n-v2.mcp.hyperplane.dev',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/n8n/, ''),
+        // Forward cookies and headers for OAuth2 authentication
+        cookieDomainRewrite: {
+          // Rewrite cookie domain to allow forwarding
+          '*': '',
+        },
+        // Preserve cookies from the original request
+        cookiePathRewrite: {
+          // Keep original path
+          '*': '',
+        },
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying request:', req.method, req.url, '->', proxyReq.path);
+            // Log cookies being forwarded (for debugging)
+            if (req.headers.cookie) {
+              console.log('Forwarding cookies:', req.headers.cookie.substring(0, 100) + '...');
+            } else {
+              console.warn('No cookies found in request - authentication may fail');
+            }
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            // Log response status for debugging
+            console.log('Proxy response status:', proxyRes.statusCode, 'for', req.url);
+          });
+        },
+      },
+    },
   },
   // Prevent Vite from injecting HMR client code
   define: {

@@ -20,7 +20,11 @@ echo "npm version: $(npm --version)"
 echo "Installing dependencies..."
 npm install
 
-# Start the Vite development server
-echo "Starting Vite development server..."
-npm run dev
+# Build the production bundle
+echo "Building production bundle..."
+npm run build
+
+# Start the production preview server
+echo "Starting production server..."
+npm run preview -- --host 0.0.0.0 --port 5173
 
