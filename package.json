@@ -9,7 +9,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "vite --host 0.0.0.0 --port 5173"
+    "start": "node server.js",
+    "serve": "node server.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.17",

@@ -30,12 +30,29 @@ if [ ! -d "dist" ]; then
   exit 1
 fi
 
+# Verify index.html exists in dist
+if [ ! -f "dist/index.html" ]; then
+  echo "ERROR: dist/index.html not found! Build may have failed."
+  exit 1
+fi
+
 echo "Build output verified. Contents of dist/:"
 ls -la dist/ || true
+echo ""
+echo "Checking for key files:"
+ls -la dist/index.html dist/assets/ 2>/dev/null || echo "Warning: Some expected files not found"
 
-# Start the production preview server
-# Use exec to ensure the process stays in the foreground and receives signals
-echo "Starting production server on 0.0.0.0:5173..."
-echo "Server will be accessible at http://0.0.0.0:5173"
-exec npm run preview -- --host 0.0.0.0 --port 5173
+# Start the production server
+# Use node server.js instead of vite preview for better control and health checks
+echo ""
+echo "=========================================="
+echo "Starting production server..."
+echo "Host: 0.0.0.0"
+echo "Port: ${PORT:-5173}"
+echo "Health check: http://0.0.0.0:${PORT:-5173}/health"
+echo "=========================================="
+echo ""
+
+# Use exec to replace shell process and ensure proper signal handling
+exec node server.js
 
