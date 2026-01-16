@@ -24,7 +24,18 @@ npm install
 echo "Building production bundle..."
 npm run build
 
+# Verify build output exists
+if [ ! -d "dist" ]; then
+  echo "ERROR: Build output directory 'dist' not found!"
+  exit 1
+fi
+
+echo "Build output verified. Contents of dist/:"
+ls -la dist/ || true
+
 # Start the production preview server
-echo "Starting production server..."
-npm run preview -- --host 0.0.0.0 --port 5173
+# Use exec to ensure the process stays in the foreground and receives signals
+echo "Starting production server on 0.0.0.0:5173..."
+echo "Server will be accessible at http://0.0.0.0:5173"
+exec npm run preview -- --host 0.0.0.0 --port 5173
 

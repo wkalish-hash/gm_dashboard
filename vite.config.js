@@ -4,9 +4,9 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Base path must match the proxy path for assets to load correctly
-  // Update this to match your actual proxy path: /hyperhub-{workspace}/code/proxy/5173/
-  base: '/hyperhub-wkalish-40purgatory-ski-basic-4453ce/code/proxy/5173/',
+  // Base path must match the deployment path for assets to load correctly
+  // For direct domain deployment (https://gm-dashboard.mcp.hyperplane.dev/), use root path
+  base: '/',
   plugins: [react(), tailwindcss()],
   server: {
     host: '0.0.0.0',
@@ -65,5 +65,15 @@ export default defineConfig({
   // Prevent Vite from injecting HMR client code
   define: {
     'import.meta.hot': 'undefined',
+  },
+  // Preview server configuration (for production)
+  preview: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
+    // Disable HMR in preview mode
+    hmr: false,
+    // Disable WebSocket
+    ws: false,
   },
 })
