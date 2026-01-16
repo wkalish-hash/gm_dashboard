@@ -53,6 +53,14 @@ echo "Health check: http://0.0.0.0:${PORT:-5173}/health"
 echo "=========================================="
 echo ""
 
+# Verify server.js exists
+if [ ! -f "server.js" ]; then
+  echo "ERROR: server.js not found!"
+  exit 1
+fi
+
+# Start the server
 # Use exec to replace shell process and ensure proper signal handling
-exec node server.js
+# Redirect stderr to stdout so all logs are visible
+exec node server.js 2>&1
 

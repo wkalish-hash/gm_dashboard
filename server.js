@@ -11,6 +11,24 @@ const __dirname = dirname(__filename);
 const PORT = process.env.PORT || 5173;
 const HOST = '0.0.0.0';
 
+// Verify dist directory exists before starting
+const distPath = join(__dirname, 'dist');
+if (!existsSync(distPath)) {
+  console.error(`ERROR: dist directory not found at ${distPath}`);
+  console.error('Please run "npm run build" first');
+  process.exit(1);
+}
+
+const indexPath = join(distPath, 'index.html');
+if (!existsSync(indexPath)) {
+  console.error(`ERROR: index.html not found at ${indexPath}`);
+  console.error('Build may have failed. Please check the build output.');
+  process.exit(1);
+}
+
+console.log('✓ Dist directory verified');
+console.log(`✓ Serving from: ${distPath}`);
+
 // MIME types
 const mimeTypes = {
   '.html': 'text/html',
@@ -30,8 +48,18 @@ const mimeTypes = {
 
 // Health check endpoint
 const healthCheck = (req, res) => {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+  const healthData = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    pid: process.pid,
+  };
+  res.writeHead(200, { 
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+  });
+  res.end(JSON.stringify(healthData));
+  console.log('Health check requested - responding with 200 OK');
 };
 
 // Serve static files
@@ -68,6 +96,10 @@ const serveFile = (req, res, filePath) => {
 
 // Main request handler
 const server = createServer((req, res) => {
+  // Log requests for debugging (can be removed in production if too verbose)
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url}`);
+  
   // Health check endpoint
   if (req.url === '/health' || req.url === '/healthz') {
     healthCheck(req, res);
@@ -101,16 +133,48 @@ const server = createServer((req, res) => {
   serveFile(req, res, fullPath);
 });
 
-// Start server
-server.listen(PORT, HOST, () => {
-  console.log(`Server running at http://${HOST}:${PORT}`);
-  console.log(`Health check available at http://${HOST}:${PORT}/health`);
-  console.log(`Serving files from: ${join(__dirname, 'dist')}`);
+// Start server with error handling
+try {
+  server.listen(PORT, HOST, () => {
+    console.log('==========================================');
+    console.log(`✓ Server started successfully`);
+    console.log(`✓ Listening on ${HOST}:${PORT}`);
+    console.log(`✓ Health check: http://${HOST}:${PORT}/health`);
+    console.log(`✓ Serving files from: ${distPath}`);
+    console.log(`✓ Process PID: ${process.pid}`);
+    console.log('==========================================');
+    console.log('Server is ready to accept connections');
+  });
+} catch (error) {
+  console.error('FATAL: Failed to start server:', error);
+  console.error('Error details:', error.message);
+  console.error('Error stack:', error.stack);
+  process.exit(1);
+}
+
+// Log that we're ready
+console.log('Server process initialized, waiting for connections...');
+
+// Error handling for server errors
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`ERROR: Port ${PORT} is already in use`);
+    console.error('Please stop the process using this port or use a different port');
+  } else {
+    console.error('Server error:', error);
+  }
+  process.exit(1);
 });
 
-// Error handling
-server.on('error', (error) => {
-  console.error('Server error:', error);
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
