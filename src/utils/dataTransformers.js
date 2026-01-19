@@ -76,12 +76,33 @@ export const formatPercentForDisplay = (value, decimals = 1) => {
  * @returns {Object|null} Transformed ticket sales data
  */
 export const transformTicketSales = (data) => {
-  if (!data || !Array.isArray(data) || data.length === 0) return null;
+  if (!data) {
+    console.warn('transformTicketSales: No data provided');
+    return null;
+  }
+  
+  if (!Array.isArray(data)) {
+    console.warn('transformTicketSales: Data is not an array:', typeof data, data);
+    return null;
+  }
+  
+  if (data.length === 0) {
+    console.warn('transformTicketSales: Data array is empty');
+    return null;
+  }
   
   const currentFY = data.find(item => item.fiscal_year === 'This Season');
   const previousFY = data.find(item => item.fiscal_year === 'Last Season');
   
-  if (!currentFY || !previousFY) return null;
+  if (!currentFY || !previousFY) {
+    console.warn('transformTicketSales: Missing required fiscal year data', {
+      hasCurrentFY: !!currentFY,
+      hasPreviousFY: !!previousFY,
+      availableFiscalYears: data.map(item => item.fiscal_year),
+      sampleItem: data[0],
+    });
+    return null;
+  }
   
   const revenueAbsoluteChange = currentFY.total_paid_no_tax - previousFY.total_paid_no_tax;
   const revenuePercentChange = previousFY.total_paid_no_tax > 0 

@@ -58,8 +58,35 @@ export const fetchTicketSales = async () => {
     }
     console.log('Fetching ticket sales from:', url);
     const response = await apiClient.get(url);
+    
+    // Handle different response structures (some APIs wrap data in objects)
+    let responseData = response.data;
+    if (responseData && !Array.isArray(responseData)) {
+      // Check if data is nested (e.g., { data: [...] } or { results: [...] })
+      if (responseData.data && Array.isArray(responseData.data)) {
+        responseData = responseData.data;
+      } else if (responseData.results && Array.isArray(responseData.results)) {
+        responseData = responseData.results;
+      }
+    }
+    
+    // Log the raw response for debugging
+    console.log('Ticket sales raw response:', {
+      dataType: Array.isArray(responseData) ? 'array' : typeof responseData,
+      dataLength: Array.isArray(responseData) ? responseData.length : 'N/A',
+      sampleData: Array.isArray(responseData) && responseData.length > 0 
+        ? responseData[0] 
+        : responseData,
+    });
+    
     // Transform the response using dataTransformers (production)
-    return transformTicketSales(response.data);
+    const transformed = transformTicketSales(responseData);
+    
+    if (!transformed) {
+      console.warn('Ticket sales transformation returned null. Raw data:', response.data);
+    }
+    
+    return transformed;
   } catch (error) {
     const url = API_ENDPOINTS.TICKET_SALES;
     console.error('Error fetching ticket sales:', {
@@ -67,6 +94,7 @@ export const fetchTicketSales = async () => {
       status: error.response?.status,
       statusText: error.response?.statusText,
       message: error.message,
+      responseData: error.response?.data,
     });
     throw new Error(`Failed to fetch ticket sales: ${error.message}`);
   }
@@ -122,12 +150,24 @@ export const fetchSalesComparison = async () => {
   
   try {
     // Fetch both ticket sales and season pass sales in parallel
-    const [ticketSales, seasonPassSales] = await Promise.all([
+    // Use Promise.allSettled to handle partial failures gracefully
+    const [ticketSalesResult, seasonPassSalesResult] = await Promise.allSettled([
       fetchTicketSales(),
       fetchSeasonPassSales(),
     ]);
     
-    // Combine both datasets
+    const ticketSales = ticketSalesResult.status === 'fulfilled' ? ticketSalesResult.value : null;
+    const seasonPassSales = seasonPassSalesResult.status === 'fulfilled' ? seasonPassSalesResult.value : null;
+    
+    // Log any failures
+    if (ticketSalesResult.status === 'rejected') {
+      console.error('Failed to fetch ticket sales:', ticketSalesResult.reason);
+    }
+    if (seasonPassSalesResult.status === 'rejected') {
+      console.error('Failed to fetch season pass sales:', seasonPassSalesResult.reason);
+    }
+    
+    // Return whatever data we have (even if one failed)
     return {
       ticketSales: ticketSales,
       seasonPassSales: seasonPassSales,
