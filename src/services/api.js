@@ -33,7 +33,7 @@ const apiClient = axios.create({
       'Authorization': `Bearer ${import.meta.env.VITE_N8N_API_KEY}`,
     }),
   },
-  timeout: 30000, // 30 second timeout
+  timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '90000', 10), // Default 90 seconds, configurable via env var
   // Send credentials (cookies) with requests when using proxy
   withCredentials: true,
 });

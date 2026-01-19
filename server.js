@@ -72,12 +72,16 @@ const proxyToN8n = (req, res) => {
   
   console.log(`Proxying ${req.method} ${req.url} -> ${targetUrl}`);
   
+  // Set timeout for the proxy request (90 seconds to match client timeout)
+  const PROXY_TIMEOUT = parseInt(process.env.PROXY_TIMEOUT || '90000', 10);
+  
   const url = new URL(targetUrl);
   const options = {
     hostname: url.hostname,
     port: url.port || 443,
     path: url.pathname + url.search,
     method: req.method,
+    timeout: PROXY_TIMEOUT,
     headers: {
       ...req.headers,
       host: url.hostname, // Override host header
@@ -92,6 +96,15 @@ const proxyToN8n = (req, res) => {
   if (req.headers.cookie) {
     options.headers['cookie'] = req.headers.cookie;
   }
+  
+  // Set timeout on the response to prevent hanging connections
+  res.setTimeout(PROXY_TIMEOUT, () => {
+    if (!res.headersSent) {
+      console.error(`Proxy timeout after ${PROXY_TIMEOUT}ms for ${req.url}`);
+      res.writeHead(504, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Gateway Timeout', message: 'Request timed out' }));
+    }
+  });
   
   // Use https for n8n
   const proxyReq = httpsRequest(options, (proxyRes) => {
@@ -109,9 +122,20 @@ const proxyToN8n = (req, res) => {
   });
   
   proxyReq.on('error', (error) => {
-    console.error('Proxy error:', error);
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Proxy error', message: error.message }));
+    if (!res.headersSent) {
+      console.error('Proxy error:', error);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Proxy error', message: error.message }));
+    }
+  });
+  
+  proxyReq.on('timeout', () => {
+    console.error(`Proxy request timeout for ${req.url}`);
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      res.writeHead(504, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Gateway Timeout', message: 'Request timed out' }));
+    }
   });
   
   // Forward request body if present
