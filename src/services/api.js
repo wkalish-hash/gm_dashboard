@@ -1,11 +1,5 @@
 import axios from 'axios';
 import { API_ENDPOINTS } from '../config/endpoints';
-import {
-  transformNPSData,
-  transformLaborData,
-  transformTicketSalesData,
-  transformSeasonPassSalesData,
-} from '../utils/localDataTransformers';
 
 /**
  * API Service Layer
@@ -126,12 +120,51 @@ const transformSeasonPassSalesFromAPI = (data) => {
 };
 
 /**
+ * Transform labor data from n8n webhook response
+ * Matches the structure from localDataTransformers.js
+ */
+const transformLaborFromAPI = (data) => {
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+  
+  // Sum up all labor expenses
+  const totalLabor = data.reduce((sum, division) => sum + (division.totalLabor || 0), 0);
+  const totalHours = data.reduce((sum, division) => sum + (division.totalHours || 0), 0);
+  
+  // Calculate total revenue from divisions
+  const totalRevenue = data.reduce((sum, division) => sum + (division.revenue || 0), 0);
+  
+  // Add percentOfRevenue to each division
+  const byDivision = data.map((division) => {
+    const divRevenue = division.revenue || 0;
+    const divLabor = division.totalLabor || 0;
+    const divPercentOfRevenue = divRevenue > 0 ? (divLabor / divRevenue) * 100 : 0;
+    
+    return {
+      ...division,
+      percentOfRevenue: Math.round(divPercentOfRevenue * 100) / 100, // Round to 2 decimal places
+    };
+  });
+  
+  // Calculate overall percentOfRevenue using actual revenue
+  const overallPercentOfRevenue = totalRevenue > 0 ? (totalLabor / totalRevenue) * 100 : 0;
+  
+  return {
+    totalLabor: totalLabor,
+    totalHours: totalHours,
+    totalRevenue: totalRevenue,
+    percentOfRevenue: Math.round(overallPercentOfRevenue * 100) / 100,
+    byDivision: byDivision,
+  };
+};
+
+/**
  * Fetch ticket sales data
  * @returns {Promise<Object>} Ticket sales data
  */
 export const fetchTicketSales = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for ticket sales');
+    const { transformTicketSalesData } = await import('../utils/localDataTransformers');
     const data = transformTicketSalesData();
     return data?.ticketSales || null;
   }
@@ -164,6 +197,7 @@ export const fetchTicketSales = async () => {
 export const fetchSeasonPassSales = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for season pass sales');
+    const { transformTicketSalesData } = await import('../utils/localDataTransformers');
     const data = transformTicketSalesData();
     return data?.seasonPassSales || null;
   }
@@ -196,6 +230,7 @@ export const fetchSeasonPassSales = async () => {
 export const fetchSalesComparison = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for sales comparison');
+    const { transformTicketSalesData } = await import('../utils/localDataTransformers');
     const data = transformTicketSalesData();
     if (!data) {
       throw new Error('Failed to load local sales data');
@@ -231,6 +266,7 @@ export const fetchSalesComparison = async () => {
 export const fetchLaborExpenses = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for labor expenses');
+    const { transformLaborData } = await import('../utils/localDataTransformers');
     const data = transformLaborData();
     if (!data) {
       throw new Error('Failed to load local labor data');
@@ -291,6 +327,7 @@ const transformNPSFromAPI = (data) => {
 export const fetchGuestSatisfaction = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for guest satisfaction');
+    const { transformNPSData } = await import('../utils/localDataTransformers');
     const data = transformNPSData();
     if (!data) {
       throw new Error('Failed to load local satisfaction data');
