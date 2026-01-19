@@ -1,9 +1,11 @@
-// Simple production server with health check endpoint
+// Simple production server with health check endpoint and API proxy
 import { createServer } from 'http';
 import { readFileSync, existsSync, statSync } from 'fs';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { request as httpRequest } from 'http';
+import { request as httpsRequest } from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -62,6 +64,60 @@ const healthCheck = (req, res) => {
   console.log('Health check requested - responding with 200 OK');
 };
 
+// Proxy API requests to n8n to avoid CORS issues
+const proxyToN8n = (req, res) => {
+  // Extract the path from /api/n8n/...
+  const proxyPath = req.url.replace(/^\/api\/n8n/, '');
+  const targetUrl = `https://n8n-v2.mcp.hyperplane.dev${proxyPath}`;
+  
+  console.log(`Proxying ${req.method} ${req.url} -> ${targetUrl}`);
+  
+  const url = new URL(targetUrl);
+  const options = {
+    hostname: url.hostname,
+    port: url.port || 443,
+    path: url.pathname + url.search,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: url.hostname, // Override host header
+    },
+  };
+  
+  // Remove headers that shouldn't be forwarded
+  delete options.headers['host'];
+  delete options.headers['connection'];
+  
+  // Explicitly forward cookies if present
+  if (req.headers.cookie) {
+    options.headers['cookie'] = req.headers.cookie;
+  }
+  
+  // Use https for n8n
+  const proxyReq = httpsRequest(options, (proxyRes) => {
+    // Copy response headers (skip ones that shouldn't be forwarded)
+    const headersToSkip = ['content-encoding', 'transfer-encoding', 'connection', 'content-length'];
+    Object.keys(proxyRes.headers).forEach(key => {
+      if (!headersToSkip.includes(key.toLowerCase())) {
+        res.setHeader(key, proxyRes.headers[key]);
+      }
+    });
+    
+    // Set status code and pipe response
+    res.writeHead(proxyRes.statusCode || 200);
+    proxyRes.pipe(res);
+  });
+  
+  proxyReq.on('error', (error) => {
+    console.error('Proxy error:', error);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Proxy error', message: error.message }));
+  });
+  
+  // Forward request body if present
+  req.pipe(proxyReq);
+};
+
 // Serve static files
 const serveFile = (req, res, filePath) => {
   try {
@@ -100,9 +156,28 @@ const server = createServer((req, res) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.url}`);
   
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, {
+      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Max-Age': '86400',
+    });
+    res.end();
+    return;
+  }
+  
   // Health check endpoint
   if (req.url === '/health' || req.url === '/healthz') {
     healthCheck(req, res);
+    return;
+  }
+  
+  // Proxy API requests to n8n
+  if (req.url.startsWith('/api/n8n')) {
+    proxyToN8n(req, res);
     return;
   }
 

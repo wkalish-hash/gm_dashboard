@@ -7,17 +7,17 @@ const validateEndpoint = (name, value) => {
   return value;
 };
 
-// Convert full n8n URLs to proxy paths in development to avoid CORS issues
-// In production, use the full URLs directly
+// Convert full n8n URLs to proxy paths to avoid CORS issues
+// The proxy is handled by server.js in production and vite.config.js in development
 const convertToProxyPath = (url) => {
-  // Only use proxy in development mode (when running vite dev server)
-  // In production (built app), use the full URL directly
-  if (import.meta.env.DEV && url && url.includes('n8n-v2.mcp.hyperplane.dev')) {
+  // Use proxy paths for n8n URLs in both development and production
+  // This avoids CORS issues since requests go through the same origin
+  if (url && url.includes('n8n-v2.mcp.hyperplane.dev')) {
     // Extract the path from the full URL and convert to proxy path
     const urlObj = new URL(url);
     return `/api/n8n${urlObj.pathname}${urlObj.search}`;
   }
-  // In production, return the full URL as-is
+  // Return the URL as-is if it's not an n8n URL
   return url;
 };
 
