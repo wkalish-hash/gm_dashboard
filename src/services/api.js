@@ -1,11 +1,18 @@
 import axios from 'axios';
 import { API_ENDPOINTS } from '../config/endpoints';
+import {
+  transformTicketSales,
+  transformSeasonPassSales,
+  transformLabor,
+  transformNPS,
+} from '../utils/dataTransformers';
 
 /**
  * API Service Layer
  * Handles all HTTP requests to n8n workflow endpoints
  * 
- * In development, uses local data files. In production, makes HTTP requests to n8n.
+ * In development (when VITE_USE_LOCAL_DATA=true), uses local data files via localDataTransformers.
+ * In production, makes HTTP requests to n8n and uses dataTransformers for transformation.
  */
 
 // Use local data only if explicitly enabled via environment variable
@@ -31,131 +38,6 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-/**
- * Transform ticket sales data from n8n webhook response
- * Matches the structure from localDataTransformers.js
- */
-const transformTicketSalesFromAPI = (data) => {
-  if (!data || !Array.isArray(data) || data.length === 0) return null;
-  
-  const currentFY = data.find(item => item.fiscal_year === 'This Season');
-  const previousFY = data.find(item => item.fiscal_year === 'Last Season');
-  
-  if (!currentFY || !previousFY) return null;
-  
-  const revenueAbsoluteChange = currentFY.total_paid_no_tax - previousFY.total_paid_no_tax;
-  const revenuePercentChange = previousFY.total_paid_no_tax > 0 
-    ? (revenueAbsoluteChange / previousFY.total_paid_no_tax) * 100 
-    : 0;
-  
-  const quantityAbsoluteChange = currentFY.quantity_total - previousFY.quantity_total;
-  const quantityPercentChange = previousFY.quantity_total > 0
-    ? (quantityAbsoluteChange / previousFY.quantity_total) * 100
-    : 0;
-  
-  return {
-    currentSeason: {
-      period: currentFY.fiscal_year,
-      revenue: currentFY.total_paid_no_tax,
-      quantity: currentFY.quantity_total,
-    },
-    lastSeason: {
-      period: previousFY.fiscal_year,
-      revenue: previousFY.total_paid_no_tax,
-      quantity: previousFY.quantity_total,
-    },
-    revenueComparison: {
-      percentChange: revenuePercentChange,
-      absoluteChange: revenueAbsoluteChange,
-    },
-    quantityComparison: {
-      percentChange: quantityPercentChange,
-      absoluteChange: quantityAbsoluteChange,
-    },
-  };
-};
-
-/**
- * Transform season pass sales data from n8n webhook response
- * Matches the structure from localDataTransformers.js
- */
-const transformSeasonPassSalesFromAPI = (data) => {
-  if (!data || !Array.isArray(data) || data.length === 0) return null;
-  
-  const currentFY = data.find(item => item.Fiscal_Year === 'FY26');
-  const previousFY = data.find(item => item.Fiscal_Year === 'FY25');
-  
-  if (!currentFY || !previousFY) return null;
-  
-  const revenueAbsoluteChange = currentFY.Amount - previousFY.Amount;
-  const revenuePercentChange = previousFY.Amount > 0 
-    ? (revenueAbsoluteChange / previousFY.Amount) * 100 
-    : 0;
-  
-  const quantityAbsoluteChange = currentFY.Quantity - previousFY.Quantity;
-  const quantityPercentChange = previousFY.Quantity > 0
-    ? (quantityAbsoluteChange / previousFY.Quantity) * 100
-    : 0;
-  
-  return {
-    currentSeason: {
-      period: currentFY.Fiscal_Year,
-      revenue: currentFY.Amount,
-      quantity: currentFY.Quantity,
-    },
-    lastSeason: {
-      period: previousFY.Fiscal_Year,
-      revenue: previousFY.Amount,
-      quantity: previousFY.Quantity,
-    },
-    revenueComparison: {
-      percentChange: revenuePercentChange,
-      absoluteChange: revenueAbsoluteChange,
-    },
-    quantityComparison: {
-      percentChange: quantityPercentChange,
-      absoluteChange: quantityAbsoluteChange,
-    },
-  };
-};
-
-/**
- * Transform labor data from n8n webhook response
- * Matches the structure from localDataTransformers.js
- */
-const transformLaborFromAPI = (data) => {
-  if (!data || !Array.isArray(data) || data.length === 0) return null;
-  
-  // Sum up all labor expenses
-  const totalLabor = data.reduce((sum, division) => sum + (division.totalLabor || 0), 0);
-  const totalHours = data.reduce((sum, division) => sum + (division.totalHours || 0), 0);
-  
-  // Calculate total revenue from divisions
-  const totalRevenue = data.reduce((sum, division) => sum + (division.revenue || 0), 0);
-  
-  // Add percentOfRevenue to each division
-  const byDivision = data.map((division) => {
-    const divRevenue = division.revenue || 0;
-    const divLabor = division.totalLabor || 0;
-    const divPercentOfRevenue = divRevenue > 0 ? (divLabor / divRevenue) * 100 : 0;
-    
-    return {
-      ...division,
-      percentOfRevenue: Math.round(divPercentOfRevenue * 100) / 100, // Round to 2 decimal places
-    };
-  });
-  
-  // Calculate overall percentOfRevenue using actual revenue
-  const overallPercentOfRevenue = totalRevenue > 0 ? (totalLabor / totalRevenue) * 100 : 0;
-  
-  return {
-    totalLabor: totalLabor,
-    totalHours: totalHours,
-    totalRevenue: totalRevenue,
-    percentOfRevenue: Math.round(overallPercentOfRevenue * 100) / 100,
-    byDivision: byDivision,
-  };
-};
 
 /**
  * Fetch ticket sales data
@@ -165,7 +47,7 @@ export const fetchTicketSales = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for ticket sales');
     const { transformTicketSalesData } = await import('../utils/localDataTransformers');
-    const data = transformTicketSalesData();
+    const data = await transformTicketSalesData();
     return data?.ticketSales || null;
   }
   
@@ -176,8 +58,8 @@ export const fetchTicketSales = async () => {
     }
     console.log('Fetching ticket sales from:', url);
     const response = await apiClient.get(url);
-    // Transform the response to match expected format
-    return transformTicketSalesFromAPI(response.data);
+    // Transform the response using dataTransformers (production)
+    return transformTicketSales(response.data);
   } catch (error) {
     const url = API_ENDPOINTS.TICKET_SALES;
     console.error('Error fetching ticket sales:', {
@@ -198,7 +80,7 @@ export const fetchSeasonPassSales = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for season pass sales');
     const { transformTicketSalesData } = await import('../utils/localDataTransformers');
-    const data = transformTicketSalesData();
+    const data = await transformTicketSalesData();
     return data?.seasonPassSales || null;
   }
   
@@ -209,8 +91,8 @@ export const fetchSeasonPassSales = async () => {
     }
     console.log('Fetching season pass sales from:', url);
     const response = await apiClient.get(url);
-    // Transform the response to match expected format
-    return transformSeasonPassSalesFromAPI(response.data);
+    // Transform the response using dataTransformers (production)
+    return transformSeasonPassSales(response.data);
   } catch (error) {
     const url = API_ENDPOINTS.SEASON_PASS_SALES;
     console.error('Error fetching season pass sales:', {
@@ -231,14 +113,11 @@ export const fetchSalesComparison = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for sales comparison');
     const { transformTicketSalesData } = await import('../utils/localDataTransformers');
-    const data = transformTicketSalesData();
+    const data = await transformTicketSalesData();
     if (!data) {
       throw new Error('Failed to load local sales data');
     }
-    // Simulate async behavior
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(data), 100);
-    });
+    return data;
   }
   
   try {
@@ -248,7 +127,7 @@ export const fetchSalesComparison = async () => {
       fetchSeasonPassSales(),
     ]);
     
-    // Combine both datasets (matching localDataTransformers.js structure)
+    // Combine both datasets
     return {
       ticketSales: ticketSales,
       seasonPassSales: seasonPassSales,
@@ -267,14 +146,11 @@ export const fetchLaborExpenses = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for labor expenses');
     const { transformLaborData } = await import('../utils/localDataTransformers');
-    const data = transformLaborData();
+    const data = await transformLaborData();
     if (!data) {
       throw new Error('Failed to load local labor data');
     }
-    // Simulate async behavior
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(data), 100);
-    });
+    return data;
   }
   
   try {
@@ -284,8 +160,8 @@ export const fetchLaborExpenses = async () => {
     }
     console.log('Fetching labor expenses from:', url);
     const response = await apiClient.get(url);
-    // Transform the response to match expected format
-    return transformLaborFromAPI(response.data);
+    // Transform the response using dataTransformers (production)
+    return transformLabor(response.data);
   } catch (error) {
     const url = API_ENDPOINTS.LABOR;
     console.error('Error fetching labor expenses:', {
@@ -299,28 +175,6 @@ export const fetchLaborExpenses = async () => {
 };
 
 /**
- * Transform NPS data from n8n webhook response
- * Matches the structure from localDataTransformers.js
- */
-const transformNPSFromAPI = (data) => {
-  if (!data || (Array.isArray(data) && data.length === 0)) return null;
-  
-  // Handle both array and single object responses
-  const npsData = Array.isArray(data) ? data[0] : data;
-  
-  return {
-    yesterdayScore: npsData.yesterday_score || 0,
-    lastYearYesterdayScore: npsData.last_year_yesterday_score || 0,
-    yesterdayCompset: npsData.yesterday_compset || 0,
-    lastYearYesterdayCompset: npsData.last_year_yesterday_compset || 0,
-    scoreDifference: npsData.score_difference || 0,
-    percentChange: npsData.percent_change || 0,
-    yesterdayDate: npsData.yesterday_date,
-    lastYearYesterdayDate: npsData.last_year_yesterday_date,
-  };
-};
-
-/**
  * Fetch guest satisfaction (NPS) data
  * @returns {Promise<Object>} Guest satisfaction data
  */
@@ -328,14 +182,11 @@ export const fetchGuestSatisfaction = async () => {
   if (USE_LOCAL_DATA) {
     console.log('Using local data for guest satisfaction');
     const { transformNPSData } = await import('../utils/localDataTransformers');
-    const data = transformNPSData();
+    const data = await transformNPSData();
     if (!data) {
       throw new Error('Failed to load local satisfaction data');
     }
-    // Simulate async behavior
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(data), 100);
-    });
+    return data;
   }
   
   try {
@@ -345,8 +196,8 @@ export const fetchGuestSatisfaction = async () => {
     }
     console.log('Fetching guest satisfaction (NPS) from:', url);
     const response = await apiClient.get(url);
-    // Transform the response to match expected format
-    return transformNPSFromAPI(response.data);
+    // Transform the response using dataTransformers (production)
+    return transformNPS(response.data);
   } catch (error) {
     const url = API_ENDPOINTS.NPS;
     console.error('Error fetching guest satisfaction:', {

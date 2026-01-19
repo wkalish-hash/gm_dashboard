@@ -1,13 +1,41 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
+
+// Plugin to replace localDataTransformers with stub in production builds
+// This prevents build errors from missing data folder imports
+const useStubInProduction = () => {
+  return {
+    name: 'use-stub-in-production',
+    resolveId(id, importer) {
+      // Only in production builds
+      if (process.env.NODE_ENV !== 'production') {
+        return null
+      }
+      
+      // Check if this is an import of localDataTransformers (not the stub itself)
+      if (id.includes('localDataTransformers') && !id.includes('stub')) {
+        // Check if it's a relative import from the utils directory
+        const isRelativeImport = id.startsWith('.') || id.startsWith('../')
+        const isLocalDataTransformers = id.includes('localDataTransformers')
+        
+        if (isRelativeImport && isLocalDataTransformers) {
+          // Resolve to the stub file instead
+          return resolve(__dirname, 'src/utils/localDataTransformers.stub.js')
+        }
+      }
+      return null
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   // Base path must match the deployment path for assets to load correctly
   // For direct domain deployment (https://gm-dashboard.mcp.hyperplane.dev/), use root path
   base: '/',
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), useStubInProduction()],
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -65,6 +93,10 @@ export default defineConfig({
   // Prevent Vite from injecting HMR client code
   define: {
     'import.meta.hot': 'undefined',
+  },
+  // Exclude data folder from optimization to prevent build errors when data folder is not present
+  optimizeDeps: {
+    exclude: ['**/data/**'],
   },
   // Preview server configuration (for production)
   preview: {

@@ -4,17 +4,83 @@
  * Transforms raw data from local data files into the format expected by components.
  * This is temporary for development - in production, n8n workflows will provide
  * data in the correct format.
+ * 
+ * Uses dynamic imports to avoid build errors when data folder is not present.
  */
 
-import npsData from '../../data/NPS.js';
-import laborData from '../../data/labor.js';
-import ticketSalesData from '../../data/ticketSales.js';
-import seasonPassSalesData from '../../data/seasonPassSales.js';
+// Cache for loaded data to avoid re-importing
+let npsDataCache = null;
+let laborDataCache = null;
+let ticketSalesDataCache = null;
+let seasonPassSalesDataCache = null;
+
+// Lazy load data files using dynamic imports
+// Using template literals to make paths dynamic so Vite doesn't try to resolve them at build time
+const loadNPSData = async () => {
+  if (npsDataCache === null) {
+    try {
+      // Use dynamic path construction to prevent Vite from statically analyzing the import
+      const dataPath = `../../data/${'NPS'}.js`;
+      const module = await import(/* @vite-ignore */ dataPath);
+      npsDataCache = module.default || module;
+    } catch (error) {
+      console.warn('Could not load NPS data file:', error.message);
+      npsDataCache = [];
+    }
+  }
+  return npsDataCache;
+};
+
+const loadLaborData = async () => {
+  if (laborDataCache === null) {
+    try {
+      // Use dynamic path construction to prevent Vite from statically analyzing the import
+      const dataPath = `../../data/${'labor'}.js`;
+      const module = await import(/* @vite-ignore */ dataPath);
+      laborDataCache = module.default || module;
+    } catch (error) {
+      console.warn('Could not load labor data file:', error.message);
+      laborDataCache = [];
+    }
+  }
+  return laborDataCache;
+};
+
+const loadTicketSalesData = async () => {
+  if (ticketSalesDataCache === null) {
+    try {
+      // Use dynamic path construction to prevent Vite from statically analyzing the import
+      const dataPath = `../../data/${'ticketSales'}.js`;
+      const module = await import(/* @vite-ignore */ dataPath);
+      ticketSalesDataCache = module.default || module;
+    } catch (error) {
+      console.warn('Could not load ticket sales data file:', error.message);
+      ticketSalesDataCache = [];
+    }
+  }
+  return ticketSalesDataCache;
+};
+
+const loadSeasonPassSalesData = async () => {
+  if (seasonPassSalesDataCache === null) {
+    try {
+      // Use dynamic path construction to prevent Vite from statically analyzing the import
+      const dataPath = `../../data/${'seasonPassSales'}.js`;
+      const module = await import(/* @vite-ignore */ dataPath);
+      seasonPassSalesDataCache = module.default || module;
+    } catch (error) {
+      console.warn('Could not load season pass sales data file:', error.message);
+      seasonPassSalesDataCache = [];
+    }
+  }
+  return seasonPassSalesDataCache;
+};
 
 /**
  * Transform NPS data to Guest Satisfaction format
  */
-export const transformNPSData = () => {
+export const transformNPSData = async () => {
+  const npsData = await loadNPSData();
   if (!npsData || npsData.length === 0) return null;
   
   const data = npsData[0];
@@ -34,7 +100,8 @@ export const transformNPSData = () => {
 /**
  * Transform labor data to Labor Expenses format
  */
-export const transformLaborData = () => {
+export const transformLaborData = async () => {
+  const laborData = await loadLaborData();
   if (!laborData || laborData.length === 0) return null;
   
   // Sum up all labor expenses
@@ -72,7 +139,9 @@ export const transformLaborData = () => {
  * Transform ticket sales data to Sales Comparison format
  * Returns combined data with both ticket sales and season pass sales
  */
-export const transformTicketSalesData = () => {
+export const transformTicketSalesData = async () => {
+  const ticketSalesData = await loadTicketSalesData();
+  
   // Transform ticket sales
   const ticketSales = (() => {
     if (!ticketSalesData || ticketSalesData.length === 0) return null;
@@ -115,7 +184,7 @@ export const transformTicketSalesData = () => {
   })();
   
   // Transform season pass sales
-  const seasonPassSales = transformSeasonPassSalesData();
+  const seasonPassSales = await transformSeasonPassSalesData();
   
   // Combine both datasets
   return {
@@ -127,7 +196,8 @@ export const transformTicketSalesData = () => {
 /**
  * Transform season pass sales data
  */
-export const transformSeasonPassSalesData = () => {
+export const transformSeasonPassSalesData = async () => {
+  const seasonPassSalesData = await loadSeasonPassSalesData();
   if (!seasonPassSalesData || seasonPassSalesData.length === 0) return null;
   
   const currentFY = seasonPassSalesData.find(item => item.Fiscal_Year === 'FY26');
