@@ -19,30 +19,32 @@ const ComparisonSection = ({ title, salesData }) => {
     const { currentSeason, lastSeason, revenueComparison, quantityComparison } = salesData;
 
     // Prepare revenue comparison data
+    // Order: Last Season first (left), then This Season (right)
     const revenueData = [
-      {
-        name: currentSeason?.period || 'Current',
-        value: currentSeason?.revenue || 0,
-        label: 'Current',
-      },
       {
         name: lastSeason?.period || 'Previous',
         value: lastSeason?.revenue || 0,
         label: 'Previous',
       },
+      {
+        name: currentSeason?.period || 'Current',
+        value: currentSeason?.revenue || 0,
+        label: 'Current',
+      },
     ];
 
     // Prepare quantity comparison data
+    // Order: Last Season first (left), then This Season (right)
     const quantityData = [
-      {
-        name: currentSeason?.period || 'Current',
-        value: currentSeason?.quantity || 0,
-        label: 'Current',
-      },
       {
         name: lastSeason?.period || 'Previous',
         value: lastSeason?.quantity || 0,
         label: 'Previous',
+      },
+      {
+        name: currentSeason?.period || 'Current',
+        value: currentSeason?.quantity || 0,
+        label: 'Current',
       },
     ];
 
@@ -183,7 +185,7 @@ const ComparisonSection = ({ title, salesData }) => {
                   {revenueData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={index === 0 ? '#3b82f6' : '#94a3b8'} 
+                      fill={index === 0 ? '#94a3b8' : '#3b82f6'} 
                     />
                   ))}
                 </Bar>
@@ -308,7 +310,7 @@ const ComparisonSection = ({ title, salesData }) => {
                   {quantityData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={index === 0 ? '#3b82f6' : '#94a3b8'} 
+                      fill={index === 0 ? '#94a3b8' : '#3b82f6'} 
                     />
                   ))}
                 </Bar>

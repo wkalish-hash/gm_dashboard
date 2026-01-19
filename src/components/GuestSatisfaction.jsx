@@ -54,7 +54,6 @@ const GuestSatisfaction = ({ data }) => {
               dataKey="period" 
               stroke="#64748b"
               style={{ fontSize: '0.875rem' }}
-              padding={{ left: 150, right: 150 }}
             />
             <YAxis 
               stroke="#64748b"
