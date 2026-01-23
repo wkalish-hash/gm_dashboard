@@ -25,12 +25,14 @@ const ticketSalesEndpoint = validateEndpoint('VITE_N8N_TICKET_SALES_ENDPOINT', i
 const seasonPassSalesEndpoint = validateEndpoint('VITE_N8N_SEASON_PASS_SALES_ENDPOINT', import.meta.env.VITE_N8N_SEASON_PASS_SALES_ENDPOINT);
 const laborEndpoint = validateEndpoint('VITE_N8N_LABOR_ENDPOINT', import.meta.env.VITE_N8N_LABOR_ENDPOINT);
 const npsEndpoint = validateEndpoint('VITE_N8N_NPS_ENDPOINT', import.meta.env.VITE_N8N_NPS_ENDPOINT);
+const trailsLiftsEndpoint = validateEndpoint('VITE_N8N_TRAILS_LIFTS_ENDPOINT', import.meta.env.VITE_N8N_TRAILS_LIFTS_ENDPOINT);
 
 export const API_ENDPOINTS = {
   TICKET_SALES: convertToProxyPath(ticketSalesEndpoint),
   SEASON_PASS_SALES: convertToProxyPath(seasonPassSalesEndpoint),
   LABOR: convertToProxyPath(laborEndpoint),
   NPS: convertToProxyPath(npsEndpoint),
+  TRAILS_LIFTS: convertToProxyPath(trailsLiftsEndpoint),
 };
 
 // Log endpoints in development (without exposing full URLs)
@@ -40,6 +42,7 @@ if (import.meta.env.DEV) {
     SEASON_PASS_SALES: API_ENDPOINTS.SEASON_PASS_SALES ? '✓ Set' : '✗ Missing',
     LABOR: API_ENDPOINTS.LABOR ? '✓ Set' : '✗ Missing',
     NPS: API_ENDPOINTS.NPS ? '✓ Set' : '✗ Missing',
+    TRAILS_LIFTS: API_ENDPOINTS.TRAILS_LIFTS ? '✓ Set' : '✗ Missing',
   });
   console.log('Using proxy paths in development to avoid CORS issues');
 }

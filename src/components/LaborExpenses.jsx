@@ -1,19 +1,53 @@
 import React from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
-} from 'recharts';
 import { formatCurrencyForDisplay, formatPercentForDisplay, formatNumberForDisplay } from '../utils/dataTransformers';
 
-const LaborExpenses = ({ data }) => {
+// Helper component for a metric display
+const Metric = ({ label, value, formatter = formatCurrencyForDisplay, formatterArgs = [] }) => (
+  <div style={{
+    padding: '1rem',
+    backgroundColor: '#f8fafc',
+    borderRadius: '0.5rem',
+    border: '1px solid #e2e8f0',
+  }}>
+    <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
+      {label}
+    </div>
+    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a' }}>
+      {formatter(value || 0, ...formatterArgs)}
+    </div>
+  </div>
+);
+
+// Helper component for a division section
+const DivisionSection = ({ title, children }) => (
+  <div style={{
+    marginBottom: '2rem',
+    padding: '1.5rem',
+    backgroundColor: '#ffffff',
+    borderRadius: '0.5rem',
+    border: '1px solid #e2e8f0',
+  }}>
+    <h3 style={{
+      fontSize: '1.25rem',
+      fontWeight: '700',
+      marginBottom: '1rem',
+      color: '#0f172a',
+      borderBottom: '2px solid #cbd5e1',
+      paddingBottom: '0.75rem',
+    }}>
+      {title}
+    </h3>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '1rem',
+    }}>
+      {children}
+    </div>
+  </div>
+);
+
+const LaborExpenses = ({ data, trailsLifts }) => {
   if (!data) {
     return (
       <div className="dashboard-card">
@@ -23,135 +57,143 @@ const LaborExpenses = ({ data }) => {
     );
   }
 
-  const { totalLabor, totalHours, totalRevenue, percentOfRevenue, byDivision } = data;
+  const { byDivision } = data;
 
-  // Prepare data for horizontal bar chart
-  // Only include revenue-producing divisions: Food & Beverage, Indoor Guest Services, and Ski School
-  const allowedDivisions = ['Food & Beverage', 'Indoor Guest Services', 'Ski School'];
-  const chartData = (byDivision || [])
-    .filter(div => div.revenue > 0 && allowedDivisions.includes(div.division))
-    .map(div => ({
-      division: div.division,
-      percentOfRevenue: div.percentOfRevenue || 0,
-    }))
-    .sort((a, b) => b.percentOfRevenue - a.percentOfRevenue); // Sort by percentage descending
+  // Helper function to find a division by name
+  const getDivision = (name) => {
+    return (byDivision || []).find(div => 
+      div.division?.toLowerCase() === name.toLowerCase()
+    ) || null;
+  };
 
-  // Calculate color based on whether it's above or below 24%
-  // const getBarColor = (percent) => {
-  //   return percent > 24 ? '#ef4444' : '#3b82f6'; // Red if above 24%, blue if below
-  // };
+  // Get division data
+  const guestServices = getDivision('Guest Services');
+  const foodBeverage = getDivision('Food & Beverage');
+  const mountainOps = getDivision('Mountain Operations');
+  const hospitality = getDivision('Hospitality');
+
+  // Calculate labor per trail/lift for Mountain Operations
+  const trailsOpen = trailsLifts?.trailsOpen || 0;
+  const liftsOpen = trailsLifts?.liftsOpen || 0;
+  const mountainOpsLabor = mountainOps?.totalLabor || 0;
+  const laborPerTrail = trailsOpen > 0 ? mountainOpsLabor / trailsOpen : 0;
+  const laborPerLift = liftsOpen > 0 ? mountainOpsLabor / liftsOpen : 0;
 
   return (
     <div className="dashboard-card">
       <h2>Labor Expenses</h2>
       
-      {/* Total Metrics */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-          <div>
-            <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
-              Total Labor
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a' }}>
-              {formatCurrencyForDisplay(totalLabor || 0)}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
-              Total Hours
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a' }}>
-              {formatNumberForDisplay(totalHours || 0, 0)}
-            </div>
-          </div>
-          {totalRevenue > 0 && (
-            <div>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                Overall % of Revenue
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a' }}>
-                {formatPercentForDisplay(percentOfRevenue || 0, 1)}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Guest Services Section */}
+      <DivisionSection title="Guest Services">
+        {guestServices?.revenue > 0 && (
+          <Metric 
+            label="Guest Services Revenue" 
+            value={guestServices.revenue} 
+          />
+        )}
+        <Metric 
+          label="Guest Services Labor" 
+          value={guestServices?.totalLabor || 0} 
+        />
+        {guestServices?.revenue > 0 && (
+          <Metric 
+            label="Guest Services Labor % of Revenue" 
+            value={guestServices.percentOfRevenue || 0}
+            formatter={formatPercentForDisplay}
+            formatterArgs={[1]}
+          />
+        )}
+      </DivisionSection>
 
-      {/* Labor to Revenue Ratio by Division - Horizontal Bar Chart */}
-      {chartData.length > 0 && (
-        <div style={{ marginTop: '2rem', width: '100%' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '1rem', color: '#475569', textAlign: 'center' }}>
-            Labor to Revenue Ratio by Division
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-            <ResponsiveContainer width="95%" height={400}>
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
-              >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                type="number"
-                domain={[0, 50]}
-                stroke="#64748b"
-                style={{ fontSize: '0.75rem' }}
-                label={{ 
-                  value: 'Labor as % of Revenue', 
-                  position: 'insideBottom', 
-                  offset: -5,
-                  style: { textAnchor: 'middle', fill: '#64748b', fontSize: '0.875rem' }
-                }}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <YAxis 
-                type="category"
-                dataKey="division"
-                stroke="#64748b"
-                style={{ fontSize: '0.75rem' }}
-                width={90}
-              />
-              <Tooltip 
-                formatter={(value) => `${formatNumberForDisplay(value, 2)}%`}
-                contentStyle={{ 
-                  backgroundColor: 'white', 
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.5rem'
-                }}
-              />
-              <ReferenceLine 
-                x={24} 
-                stroke="#10b981" 
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                label={{ 
-                  value: "24% Target", 
-                  position: "top",
-                  fill: '#10b981',
-                  fontSize: '0.75rem',
-                  fontWeight: '600'
-                }}
-              />
-              <Bar 
-                dataKey="percentOfRevenue" 
-                radius={[0, 4, 4, 0]}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={'#3b82f6'} 
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Food & Beverage Section */}
+      <DivisionSection title="Food & Beverage">
+        {foodBeverage?.revenue > 0 && (
+          <Metric 
+            label="Food & Beverage Revenue" 
+            value={foodBeverage.revenue} 
+          />
+        )}
+        <Metric 
+          label="Food & Beverage Labor" 
+          value={foodBeverage?.totalLabor || 0} 
+        />
+        {foodBeverage?.revenue > 0 && (
+          <Metric 
+            label="Food & Beverage Labor % of Revenue" 
+            value={foodBeverage.percentOfRevenue || 0}
+            formatter={formatPercentForDisplay}
+            formatterArgs={[1]}
+          />
+        )}
+      </DivisionSection>
+
+      {/* Mountain Operations Section */}
+      <DivisionSection title="Mountain Operations">
+        <Metric 
+          label="Labor" 
+          value={mountainOps?.totalLabor || 0} 
+        />
+        {trailsLifts && (
+          <Metric 
+            label="Trails Open" 
+            value={trailsOpen}
+            formatter={formatNumberForDisplay}
+          />
+        )}
+        {trailsLifts && (
+          <Metric 
+            label="Lifts Open" 
+            value={liftsOpen}
+            formatter={formatNumberForDisplay}
+          />
+        )}
+        {trailsLifts && trailsOpen > 0 && (
+          <Metric 
+            label="Labor per Open Trail" 
+            value={laborPerTrail} 
+          />
+        )}
+        {trailsLifts && liftsOpen > 0 && (
+          <Metric 
+            label="Labor per Open Lift" 
+            value={laborPerLift} 
+          />
+        )}
+      </DivisionSection>
+
+      {/* Hospitality Section */}
+      <DivisionSection title="Hospitality">
+        <Metric 
+          label="Labor" 
+          value={hospitality?.totalLabor || 0} 
+        />
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#f8fafc',
+          borderRadius: '0.5rem',
+          border: '1px solid #e2e8f0',
+        }}>
+          <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
+            ADR
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#94a3b8', fontStyle: 'italic' }}>
+            Coming Soon
           </div>
         </div>
-      )}
-
-      {chartData.length === 0 && (
-        <p style={{ color: '#64748b', marginTop: '1rem' }}>No revenue data available for divisions</p>
-      )}
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#f8fafc',
+          borderRadius: '0.5rem',
+          border: '1px solid #e2e8f0',
+        }}>
+          <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
+            Occupancy
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#94a3b8', fontStyle: 'italic' }}>
+            Coming Soon
+          </div>
+        </div>
+      </DivisionSection>
     </div>
   );
 };

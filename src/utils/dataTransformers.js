@@ -189,24 +189,92 @@ export const transformSeasonPassSales = (data) => {
 export const transformLabor = (data) => {
   if (!data || !Array.isArray(data) || data.length === 0) return null;
   
-  // Sum up all labor expenses
-  const totalLabor = data.reduce((sum, division) => sum + (division.totalLabor || 0), 0);
-  const totalHours = data.reduce((sum, division) => sum + (division.totalHours || 0), 0);
+  // Define consolidation rules
+  const guestServicesDivisions = ['Ski School', 'Indoor Guest Services', 'Outdoor Guest Services'];
+  const hospitalityDivisions = ['Lodging', 'Community Services'];
+  const keepAsIs = ['Mountain Operations', 'Food & Beverage'];
   
-  // Calculate total revenue from divisions
-  const totalRevenue = data.reduce((sum, division) => sum + (division.revenue || 0), 0);
+  // Helper function to check if a division name matches (case-insensitive, flexible matching)
+  const matchesDivision = (divisionName, targetNames) => {
+    const normalized = divisionName?.trim() || '';
+    return targetNames.some(target => 
+      normalized.toLowerCase() === target.toLowerCase() ||
+      normalized.toLowerCase().includes(target.toLowerCase()) ||
+      target.toLowerCase().includes(normalized.toLowerCase())
+    );
+  };
   
-  // Add percentOfRevenue to each division
-  const byDivision = data.map((division) => {
-    const divRevenue = division.revenue || 0;
-    const divLabor = division.totalLabor || 0;
+  // Consolidate divisions
+  const consolidated = {
+    'Guest Services': {
+      division: 'Guest Services',
+      totalLabor: 0,
+      totalHours: 0,
+      revenue: 0,
+    },
+    'Hospitality': {
+      division: 'Hospitality',
+      totalLabor: 0,
+      totalHours: 0,
+      revenue: 0,
+    },
+    'Mountain Operations': {
+      division: 'Mountain Operations',
+      totalLabor: 0,
+      totalHours: 0,
+      revenue: 0,
+    },
+    'Food & Beverage': {
+      division: 'Food & Beverage',
+      totalLabor: 0,
+      totalHours: 0,
+      revenue: 0,
+    },
+  };
+  
+  // Process each division from the API
+  data.forEach((division) => {
+    const divName = division.division || division.divisionName || '';
+    const labor = division.totalLabor || 0;
+    const hours = division.totalHours || 0;
+    const revenue = division.revenue || 0;
+    
+    if (matchesDivision(divName, guestServicesDivisions)) {
+      consolidated['Guest Services'].totalLabor += labor;
+      consolidated['Guest Services'].totalHours += hours;
+      consolidated['Guest Services'].revenue += revenue;
+    } else if (matchesDivision(divName, hospitalityDivisions)) {
+      consolidated['Hospitality'].totalLabor += labor;
+      consolidated['Hospitality'].totalHours += hours;
+      consolidated['Hospitality'].revenue += revenue;
+    } else if (matchesDivision(divName, ['Mountain Operations'])) {
+      consolidated['Mountain Operations'].totalLabor += labor;
+      consolidated['Mountain Operations'].totalHours += hours;
+      consolidated['Mountain Operations'].revenue += revenue;
+    } else if (matchesDivision(divName, ['Food & Beverage', 'Food and Beverage', 'F&B'])) {
+      consolidated['Food & Beverage'].totalLabor += labor;
+      consolidated['Food & Beverage'].totalHours += hours;
+      consolidated['Food & Beverage'].revenue += revenue;
+    }
+    // All other divisions are ignored for now
+  });
+  
+  // Convert to array and calculate percentOfRevenue for each consolidated division
+  const byDivision = Object.values(consolidated).map((div) => {
+    const divRevenue = div.revenue || 0;
+    const divLabor = div.totalLabor || 0;
     const divPercentOfRevenue = divRevenue > 0 ? (divLabor / divRevenue) * 100 : 0;
     
     return {
-      ...division,
+      ...div,
       percentOfRevenue: Math.round(divPercentOfRevenue * 100) / 100, // Round to 2 decimal places
     };
   });
+  
+  // Calculate totals from consolidated divisions
+  const totalLabor = byDivision.reduce((sum, div) => sum + (div.totalLabor || 0), 0);
+  const totalHours = byDivision.reduce((sum, div) => sum + (div.totalHours || 0), 0);
+  const totalRevenue = byDivision.reduce((sum, div) => sum + (div.revenue || 0), 0);
   
   // Calculate overall percentOfRevenue using actual revenue
   const overallPercentOfRevenue = totalRevenue > 0 ? (totalLabor / totalRevenue) * 100 : 0;

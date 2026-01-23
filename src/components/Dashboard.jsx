@@ -11,6 +11,7 @@ const Dashboard = () => {
     sales: null,
     labor: null,
     satisfaction: null,
+    trailsLifts: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,11 +40,11 @@ const Dashboard = () => {
     
     // Also set up a shorter interval for development/testing (every 5 minutes)
     // Remove or adjust this in production
-    const refreshInterval = setInterval(loadData, 5 * 60 * 1000);
+    // const refreshInterval = setInterval(loadData, 5 * 60 * 1000);
     
     return () => {
       clearInterval(dailyInterval);
-      clearInterval(refreshInterval);
+      // clearInterval(refreshInterval);
     };
   }, []);
 
@@ -98,7 +99,7 @@ const Dashboard = () => {
       {!loading && !error && (
         <div className="dashboard-grid">
           <SalesComparison data={data.sales} />
-          <LaborExpenses data={data.labor} />
+          <LaborExpenses data={data.labor} trailsLifts={data.trailsLifts} />
           <GuestSatisfaction data={data.satisfaction} />
         </div>
       )}

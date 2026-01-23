@@ -251,20 +251,74 @@ export const fetchGuestSatisfaction = async () => {
 };
 
 /**
+ * Fetch trails and lifts data
+ * @returns {Promise<Object>} Trails and lifts data
+ */
+export const fetchTrailsLifts = async () => {
+  try {
+    const url = API_ENDPOINTS.TRAILS_LIFTS;
+    if (!url) {
+      throw new Error('Trails and lifts endpoint URL is not configured');
+    }
+    console.log('Fetching trails and lifts from:', url);
+    const response = await apiClient.get(url);
+    
+    // The API returns { trailsOpen: "59", liftsOpen: "8" }
+    // Convert strings to numbers for consistency
+    return {
+      trailsOpen: parseInt(response.data.trailsOpen || 0, 10),
+      liftsOpen: parseInt(response.data.liftsOpen || 0, 10),
+    };
+  } catch (error) {
+    const url = API_ENDPOINTS.TRAILS_LIFTS;
+    console.error('Error fetching trails and lifts:', {
+      url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      message: error.message,
+    });
+    throw new Error(`Failed to fetch trails and lifts: ${error.message}`);
+  }
+};
+
+/**
  * Fetch all dashboard data
  * @returns {Promise<Object>} All dashboard data
  */
 export const fetchAllData = async () => {
   try {
-    const [sales, labor, satisfaction] = await Promise.all([
+    // Use Promise.allSettled to handle partial failures gracefully
+    const [salesResult, laborResult, satisfactionResult, trailsLiftsResult] = await Promise.allSettled([
       fetchSalesComparison(),
       fetchLaborExpenses(),
       fetchGuestSatisfaction(),
+      fetchTrailsLifts(),
     ]);
+    
+    const sales = salesResult.status === 'fulfilled' ? salesResult.value : null;
+    const labor = laborResult.status === 'fulfilled' ? laborResult.value : null;
+    const satisfaction = satisfactionResult.status === 'fulfilled' ? satisfactionResult.value : null;
+    const trailsLifts = trailsLiftsResult.status === 'fulfilled' ? trailsLiftsResult.value : null;
+    
+    // Log any failures
+    if (salesResult.status === 'rejected') {
+      console.error('Failed to fetch sales:', salesResult.reason);
+    }
+    if (laborResult.status === 'rejected') {
+      console.error('Failed to fetch labor:', laborResult.reason);
+    }
+    if (satisfactionResult.status === 'rejected') {
+      console.error('Failed to fetch satisfaction:', satisfactionResult.reason);
+    }
+    if (trailsLiftsResult.status === 'rejected') {
+      console.error('Failed to fetch trails and lifts:', trailsLiftsResult.reason);
+    }
+    
     return {
       sales,
       labor,
       satisfaction,
+      trailsLifts,
     };
   } catch (error) {
     console.error('Error fetching all data:', error);
